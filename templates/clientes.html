@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Clientes - SST Gestor{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people"></i> Gestión de Clientes</h2>
+        <a href="/" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Nuevo Cliente</a>
+    </div>
+
+    <div class="card card-shadow p-4">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="tablaClientes">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Razón Social</th>
+                        <th>RUC</th>
+                        <th>Representante</th>
+                        <th>Teléfono</th>
+                        <th>N° Trabajadores</th>
+                        <th>Código Acceso</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyClientes">
+                    <tr><td colspan="8" class="text-center text-muted">Cargando clientes...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function cargarClientes() {
+        fetch('/api/clientes')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('tbodyClientes');
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay clientes registrados</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(c => `
+                    <tr>
+                        <td>${c.id}</td>
+                        <td><strong>${c.razon_social}</strong></td>
+                        <td>${c.ruc}</td>
+                        <td>${c.representante}</td>
+                        <td>${c.telefono || '-'}</td>
+                        <td><span class="badge bg-secondary">${c.numero_trabajadores}</span></td>
+                        <td><span class="badge bg-info">${c.codigo_acceso || 'Sin código'}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="generarPropuesta(${c.id})" title="Generar propuesta">
+                                <i class="bi bi-file-earmark-plus"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="eliminarCliente(${c.id})" title="Eliminar cliente">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="regenerarCodigo(${c.id})" title="Regenerar código">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="copiarCodigo('${c.codigo_acceso || ''}')" title="Copiar código">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            })
+            .catch(err => console.error('Error:', err));
+    }
+
+    function generarPropuesta(clienteId) {
+        fetch('/api/propuestas/generar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: clienteId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            showToast(`Propuesta #${data.propuesta_id} generada exitosamente`, 'Éxito', 'success');
+            window.location.href = `/editar-propuesta/${data.propuesta_id}`;
+        })
+        .catch(err => showToast('Error al generar propuesta', 'Error', 'danger'));
+    }
+
+    function eliminarCliente(clienteId) {
+        if (!confirm('¿Estás seguro de eliminar este cliente? Se eliminarán también sus propuestas y proyectos.')) return;
+        fetch(`/api/clientes/${clienteId}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'Error', 'danger');
+                } else {
+                    showToast('Cliente eliminado correctamente', 'Éxito', 'success');
+                    cargarClientes();
+                }
+            })
+            .catch(err => showToast('Error al eliminar cliente', 'Error', 'danger'));
+    }
+
+    function regenerarCodigo(clienteId) {
+        if (!confirm('¿Regenerar el código de acceso? El código anterior dejará de funcionar.')) return;
+        fetch(`/api/clientes/${clienteId}/codigo`, {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.codigo) {
+                showToast('Código regenerado exitosamente', 'Éxito', 'success');
+                cargarClientes();
+            }
+        })
+        .catch(err => showToast('Error al regenerar código', 'Error', 'danger'));
+    }
+
+    function copiarCodigo(codigo) {
+        if (!codigo) {
+            showToast('No hay código para copiar', 'Aviso', 'warning');
+            return;
+        }
+        const url = `${window.location.origin}/cliente/${codigo}`;
+        const textoCompleto = `Código: ${codigo}\nURL: ${url}`;
+        navigator.clipboard.writeText(textoCompleto).then(() => {
+            showToast('Código y URL copiados al portapapeles', 'Éxito', 'success');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', cargarClientes);
+</script>
+{% endblock %}

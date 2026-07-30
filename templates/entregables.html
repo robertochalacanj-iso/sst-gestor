@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}Seguimiento - SST Gestor{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-list-check"></i> Seguimiento de Entregables</h2>
+        <div>
+            <button class="btn btn-success" onclick="exportarPDF()">
+                <i class="bi bi-file-pdf"></i> Exportar PDF
+            </button>
+        </div>
+    </div>
+    <p class="text-muted">Gestiona proyectos y sus entregables. Los entregables se generan automáticamente desde los servicios de la propuesta.</p>
+
+    <!-- Código de acceso del cliente -->
+    <div class="alert alert-info" id="codigoAccesoContainer" style="display:none;">
+        <i class="bi bi-info-circle"></i> 
+        <strong>Portal del Cliente:</strong> 
+        <span class="badge bg-dark" id="codigoAccesoDisplay">Cargando...</span>
+        <button class="btn btn-sm btn-outline-dark ms-2" onclick="copiarCodigo()">
+            <i class="bi bi-clipboard"></i> Copiar
+        </button>
+        <span class="ms-3 small text-muted">
+            Envía este código al cliente para que acceda a su portal: 
+            <code id="codigoAccesoUrl"></code>
+        </span>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Nuevo Proyecto -->
+            <div class="card card-shadow p-3">
+                <h5><i class="bi bi-plus-circle"></i> Nuevo Proyecto</h5>
+                <form id="formProyecto">
+                    <div class="mb-2">
+                        <label class="form-label">Cliente</label>
+                        <select class="form-select" id="proyectoCliente" required></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Propuesta (opcional)</label>
+                        <select class="form-select" id="proyectoPropuesta">
+                            <option value="">Sin propuesta</option>
+                        </select>
+                        <small class="text-muted">Al vincular una propuesta, los entregables se generan automáticamente</small>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Nombre del Proyecto *</label>
+                        <input type="text" class="form-control" id="proyectoNombre" required placeholder="Ej: Implementación SST 2026">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Consultor Responsable</label>
+                        <input type="text" class="form-control" id="proyectoConsultor" placeholder="Nombre del consultor">
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label">Fecha Inicio *</label>
+                            <input type="date" class="form-control" id="proyectoInicio" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Fecha Fin (estimada)</label>
+                            <input type="date" class="form-control" id="proyectoFin">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mt-2">Crear Proyecto</button>
+                </form>
+            </div>
+
+            <!-- Nuevo Entregable Manual -->
+            <div class="card card-shadow p-3 mt-3">
+                <h5><i class="bi bi-file-earmark-plus"></i> Nuevo Entregable (Manual)</h5>
+                <form id="formEntregable">
+                    <div class="mb-2">
+                        <label class="form-label">Proyecto *</label>
+                        <select class="form-select" id="entregableProyecto" required></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Nombre del Entregable *</label>
+                        <input type="text" class="form-control" id="entregableNombre" required placeholder="Ej: Capacitación adicional">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="entregableDesc" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fecha Límite *</label>
+                        <input type="date" class="form-control" id="entregableFechaLimite" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fecha Entrega (cierre)</label>
+                        <input type="date" class="form-control" id="entregableFechaEntrega">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Estado</label>
+                        <select class="form-select" id="entregableEstado">
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="En Progreso">En Progreso</option>
+                            <option value="Entregado Cliente">Entregado Cliente</option>
+                            <option value="Aprobado Cliente">Aprobado Cliente</option>
+                            <option value="Registrado SUT">Registrado SUT</option>
+                            <option value="Cerrado">Cerrado</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 mt-2">Agregar Entregable</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card card-shadow p-3">
+                <h5><i class="bi bi-list-task"></i> Lista de Entregables</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Proyecto</th>
+                                <th>Entregable</th>
+                                <th>Estado</th>
+                                <th>Límite</th>
+                                <th>Entrega</th>
+                                <th>Archivo</th>
+                                <th>Origen</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyEntregables">
+                            <tr><td colspan="8" class="text-center text-muted">Cargando entregables...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar entregable -->
+<div class="modal fade" id="modalEditarEntregable" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Entregable</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarEntregable" enctype="multipart/form-data">
+                    <input type="hidden" id="editEntregableId">
+                    <div class="mb-2">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="editNombre" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="editDescripcion" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Estado</label>
+                        <select class="form-select" id="editEstado">
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="En Progreso">En Progreso</option>
+                            <option value="Entregado Cliente">Entregado Cliente</option>
+                            <option value="Aprobado Cliente">Aprobado Cliente</option>
+                            <option value="Registrado SUT">Registrado SUT</option>
+                            <option value="Cerrado">Cerrado</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fecha Límite</label>
+                        <input type="date" class="form-control" id="editFechaLimite">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Fecha Entrega (cierre)</label>
+                        <input type="date" class="form-control" id="editFechaEntrega">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Comentarios</label>
+                        <textarea class="form-control" id="editComentarios" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Subir Documento</label>
+                        <input type="file" class="form-control" id="editArchivo" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.txt,.zip,.rar">
+                        <small class="text-muted">Formatos permitidos: PDF, Word, Excel, PowerPoint, imágenes, TXT, ZIP, RAR</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarEdicionEntregable()">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function cargarClientesYPropuestas() {
+        fetch('/api/clientes')
+            .then(res => res.json())
+            .then(data => {
+                const selectCliente = document.getElementById('proyectoCliente');
+                selectCliente.innerHTML = '<option value="">Seleccionar cliente...</option>';
+                data.forEach(c => {
+                    selectCliente.innerHTML += `<option value="${c.id}">${c.razon_social}</option>`;
+                });
+                // Si ya hay un cliente seleccionado, actualizar el código de acceso
+                if (selectCliente.value) {
+                    cargarCodigoAcceso(selectCliente.value);
+                }
+            });
+
+        fetch('/api/propuestas')
+            .then(res => res.json())
+            .then(data => {
+                const selectPropuesta = document.getElementById('proyectoPropuesta');
+                selectPropuesta.innerHTML = '<option value="">Sin propuesta</option>';
+                data.forEach(p => {
+                    selectPropuesta.innerHTML += `<option value="${p.id}">#${p.id} - ${p.cliente} ($${p.total_anual.toFixed(0)})</option>`;
+                });
+            });
+
+        fetch('/api/proyectos')
+            .then(res => res.json())
+            .then(data => {
+                const select = document.getElementById('entregableProyecto');
+                select.innerHTML = '<option value="">Seleccionar proyecto...</option>';
+                data.forEach(p => {
+                    select.innerHTML += `<option value="${p.id}">${p.nombre} - ${p.cliente}</option>`;
+                });
+            });
+    }
+
+    function cargarCodigoAcceso(clienteId) {
+        const container = document.getElementById('codigoAccesoContainer');
+        fetch(`/api/clientes/${clienteId}/codigo`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.codigo) {
+                    container.style.display = 'block';
+                    document.getElementById('codigoAccesoDisplay').textContent = data.codigo;
+                    document.getElementById('codigoAccesoUrl').textContent = 
+                        `${window.location.origin}/cliente/${data.codigo}`;
+                } else {
+                    container.style.display = 'none';
+                }
+            })
+            .catch(() => {
+                container.style.display = 'none';
+            });
+    }
+
+    function copiarCodigo() {
+        const codigo = document.getElementById('codigoAccesoDisplay').textContent;
+        const url = document.getElementById('codigoAccesoUrl').textContent;
+        const textoCompleto = `${codigo} - ${url}`;
+        navigator.clipboard.writeText(textoCompleto).then(() => {
+            showToast('Código y URL copiados al portapapeles', 'Éxito', 'success');
+        });
+    }
+
+    function cargarEntregables() {
+        fetch('/api/entregables')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('tbodyEntregables');
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay entregables registrados</td></tr>';
+                    return;
+                }
+                const estados = {
+                    'Pendiente': 'secondary',
+                    'En Progreso': 'primary',
+                    'Entregado Cliente': 'warning',
+                    'Aprobado Cliente': 'info',
+                    'Registrado SUT': 'success',
+                    'Cerrado': 'dark'
+                };
+                tbody.innerHTML = data.map(e => `
+                    <tr>
+                        <td><strong>Propuesta #${e.propuesta_id}</strong></td>
+                        <td>${e.nombre || 'Sin nombre'}</td>
+                        <td><span class="badge bg-${estados[e.estado] || 'secondary'}">${e.estado}</span></td>
+                        <td>${e.fecha_limite ? formatDate(e.fecha_limite) : '-'}</td>
+                        <td>${e.fecha_entrega ? formatDate(e.fecha_entrega) : '-'}</td>
+                        <td>
+                            ${e.archivo ? 
+                                `<a href="/uploads/${e.archivo}" class="btn btn-sm btn-success" target="_blank" title="Descargar archivo">
+                                    <i class="bi bi-file-earmark"></i>
+                                </a>` : 
+                                '<span class="text-muted small">-</span>'
+                            }
+                        </td>
+                        <td>${e.es_autogenerado ? '🔗 Propuesta' : '✋ Manual'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="abrirEditarEntregable(${e.id})" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="eliminarEntregable(${e.id})" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            });
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('es-EC');
+    }
+
+    function exportarPDF() {
+        const proyectoSelect = document.getElementById('entregableProyecto');
+        const proyectoId = proyectoSelect ? proyectoSelect.value : '';
+        let url = '/api/entregables/pdf';
+        if (proyectoId) {
+            url += `?proyecto_id=${proyectoId}`;
+        }
+        window.open(url, '_blank');
+    }
+
+    document.getElementById('proyectoCliente').addEventListener('change', function() {
+        if (this.value) {
+            cargarCodigoAcceso(this.value);
+        } else {
+            document.getElementById('codigoAccesoContainer').style.display = 'none';
+        }
+    });
+
+    document.getElementById('formProyecto').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const data = {
+            cliente_id: parseInt(document.getElementById('proyectoCliente').value),
+            propuesta_id: document.getElementById('proyectoPropuesta').value ? parseInt(document.getElementById('proyectoPropuesta').value) : null,
+            nombre: document.getElementById('proyectoNombre').value.trim(),
+            consultor_responsable: document.getElementById('proyectoConsultor').value.trim(),
+            fecha_inicio: document.getElementById('proyectoInicio').value,
+            fecha_fin: document.getElementById('proyectoFin').value || null,
+            estado: 'Activo'
+        };
+        if (!data.cliente_id || !data.nombre || !data.fecha_inicio) {
+            showToast('Completa todos los campos obligatorios', 'Error', 'danger');
+            return;
+        }
+        fetch('/api/proyectos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            showToast(data.mensaje || 'Proyecto creado exitosamente', 'Éxito', 'success');
+            cargarClientesYPropuestas();
+            cargarEntregables();
+            document.getElementById('formProyecto').reset();
+        });
+    });
+
+    document.getElementById('formEntregable').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const data = {
+            proyecto_id: parseInt(document.getElementById('entregableProyecto').value),
+            nombre: document.getElementById('entregableNombre').value.trim(),
+            descripcion: document.getElementById('entregableDesc').value.trim(),
+            estado: document.getElementById('entregableEstado').value,
+            fecha_limite: document.getElementById('entregableFechaLimite').value,
+            fecha_entrega: document.getElementById('entregableFechaEntrega').value || null,
+            comentarios: ''
+        };
+        if (!data.proyecto_id || !data.nombre || !data.fecha_limite) {
+            showToast('Completa todos los campos obligatorios', 'Error', 'danger');
+            return;
+        }
+        fetch('/api/entregables', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            showToast('Entregable creado exitosamente', 'Éxito', 'success');
+            cargarEntregables();
+            document.getElementById('formEntregable').reset();
+        });
+    });
+
+    function abrirEditarEntregable(id) {
+        fetch('/api/entregables')
+            .then(res => res.json())
+            .then(data => {
+                const item = data.find(e => e.id === id);
+                if (!item) return;
+                document.getElementById('editEntregableId').value = item.id;
+                document.getElementById('editNombre').value = item.nombre || '';
+                document.getElementById('editDescripcion').value = item.descripcion || '';
+                document.getElementById('editEstado').value = item.estado || 'Pendiente';
+                document.getElementById('editFechaLimite').value = item.fecha_limite ? item.fecha_limite.substring(0,10) : '';
+                document.getElementById('editFechaEntrega').value = item.fecha_entrega ? item.fecha_entrega.substring(0,10) : '';
+                document.getElementById('editComentarios').value = item.comentarios || '';
+                // Limpiar input de archivo
+                document.getElementById('editArchivo').value = '';
+                new bootstrap.Modal(document.getElementById('modalEditarEntregable')).show();
+            });
+    }
+
+    function guardarEdicionEntregable() {
+        const id = document.getElementById('editEntregableId').value;
+        const formData = new FormData();
+        formData.append('nombre', document.getElementById('editNombre').value.trim());
+        formData.append('descripcion', document.getElementById('editDescripcion').value.trim());
+        formData.append('estado', document.getElementById('editEstado').value);
+        formData.append('fecha_limite', document.getElementById('editFechaLimite').value || '');
+        formData.append('fecha_entrega', document.getElementById('editFechaEntrega').value || '');
+        formData.append('comentarios', document.getElementById('editComentarios').value.trim());
+        
+        const archivo = document.getElementById('editArchivo').files[0];
+        if (archivo) {
+            formData.append('archivo', archivo);
+        }
+
+        fetch(`/api/entregables/${id}`, {
+            method: 'PUT',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            showToast('Entregable actualizado', 'Éxito', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarEntregable')).hide();
+            cargarEntregables();
+        });
+    }
+
+    function eliminarEntregable(id) {
+        if (!confirm('¿Eliminar este entregable?')) return;
+        fetch(`/api/entregables/${id}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                showToast(data.mensaje || 'Eliminado', 'Éxito', 'success');
+                cargarEntregables();
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        cargarClientesYPropuestas();
+        cargarEntregables();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Propuesta #{{ propuesta_id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-pencil-square"></i> Editar Propuesta #{{ propuesta_id }}</h2>
+        <a href="/" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+    </div>
+
+    <!-- Datos del cliente (solo lectura) -->
+    <div class="card card-shadow p-4 mb-4" id="datosCliente">
+        <h5><i class="bi bi-building"></i> Datos del Cliente</h5>
+        <div id="infoCliente" class="row">
+            <div class="col-md-3"><strong>Razón Social:</strong> <span id="clienteRazon"></span></div>
+            <div class="col-md-3"><strong>RUC:</strong> <span id="clienteRuc"></span></div>
+            <div class="col-md-3"><strong>Representante:</strong> <span id="clienteRepresentante"></span></div>
+            <div class="col-md-3"><strong>N° Trabajadores:</strong> <span id="clienteTrabajadores"></span></div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-6"><strong>Email:</strong> <span id="clienteEmail"></span></div>
+            <div class="col-md-6"><strong>Teléfono:</strong> <span id="clienteTelefono"></span></div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-6"><strong>Actividad:</strong> <span id="clienteActividad"></span></div>
+            <div class="col-md-6">
+                <strong>Código de acceso:</strong> 
+                <span id="clienteCodigo" class="badge bg-secondary"></span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="copiarCodigoCliente()">
+                    <i class="bi bi-clipboard"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="regenerarCodigoCliente()">
+                    <i class="bi bi-arrow-repeat"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Observaciones personalizadas de toda la propuesta -->
+    <div class="card card-shadow p-4 mb-4">
+        <h5><i class="bi bi-chat-text"></i> Observaciones Personalizadas (generales)</h5>
+        <p class="text-muted small">Aquí puedes añadir información específica del cliente: número de centros, ciudades, requisitos particulares, etc.</p>
+        <textarea id="observacionesPersonalizadas" class="form-control" rows="4" placeholder="Ej: 4 centros de trabajo en Quito, Guayaquil y Cuenca. Gestión Técnica únicamente."></textarea>
+    </div>
+
+    <!-- Estado de la propuesta -->
+    <div class="card card-shadow p-4 mb-4">
+        <h5><i class="bi bi-tags"></i> Estado</h5>
+        <select id="estadoPropuesta" class="form-select w-50">
+            <option value="Borrador">Borrador</option>
+            <option value="Enviada">Enviada</option>
+            <option value="Aceptada">Aceptada</option>
+            <option value="Rechazada">Rechazada</option>
+        </select>
+    </div>
+
+    <!-- Lista de servicios editable con observaciones -->
+    <div class="card card-shadow p-4 mb-4">
+        <h5><i class="bi bi-list-ul"></i> Servicios</h5>
+        <p class="text-muted small">Agrega, edita o elimina servicios. Modifica cantidades y precios libremente. Cada servicio tiene un campo de observaciones para destacar detalles.</p>
+        <div class="table-responsive">
+            <table class="table table-bordered" id="tablaServicios">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Descripción</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Precio Unitario</th>
+                        <th>Subtotal</th>
+                        <th>Observaciones</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyServicios">
+                    <!-- Se llena con JS -->
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-primary mt-2" onclick="agregarFila()"><i class="bi bi-plus-circle"></i> Agregar Servicio</button>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <strong>Total Mensual:</strong> <span id="totalMensualDisplay" class="text-success fs-5">$0.00</span>
+            </div>
+            <div class="col-md-6 text-end">
+                <strong>Total Anual:</strong> <span id="totalAnualDisplay" class="text-success fs-5">$0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="d-flex gap-3 flex-wrap">
+        <button class="btn btn-success btn-lg" onclick="guardarPropuesta()"><i class="bi bi-save"></i> Guardar Propuesta</button>
+        <a id="btnDescargarPDF" href="#" class="btn btn-info btn-lg" target="_blank"><i class="bi bi-file-pdf"></i> Descargar PDF</a>
+        <a href="/api/entregables/pdf?propuesta_id={{ propuesta_id }}" class="btn btn-secondary btn-lg" target="_blank">
+            <i class="bi bi-list-check"></i> Descargar seguimiento
+        </a>
+        <button class="btn btn-danger btn-lg" onclick="regenerarPropuesta()"><i class="bi bi-arrow-repeat"></i> Regenerar desde base</button>
+    </div>
+
+    <div id="mensajeGuardado" class="mt-3"></div>
+</div>
+
+<script>
+    let propuestaId = {{ propuesta_id }};
+    let serviciosData = [];
+    let totalAnualActual = 0;
+    let clienteIdActual = null;
+
+    function cargarPropuesta() {
+        fetch(`/api/propuestas/${propuestaId}`)
+            .then(res => res.json())
+            .then(data => {
+                clienteIdActual = data.cliente_id;
+                document.getElementById('clienteRazon').textContent = data.cliente.razon_social;
+                document.getElementById('clienteRuc').textContent = data.cliente.ruc;
+                document.getElementById('clienteRepresentante').textContent = data.cliente.representante;
+                document.getElementById('clienteTrabajadores').textContent = data.cliente.numero_trabajadores;
+                document.getElementById('clienteEmail').textContent = data.cliente.email;
+                document.getElementById('clienteTelefono').textContent = data.cliente.telefono;
+                document.getElementById('clienteActividad').textContent = data.cliente.actividad_codigo;
+
+                document.getElementById('observacionesPersonalizadas').value = data.observaciones_personalizadas || '';
+                document.getElementById('estadoPropuesta').value = data.estado || 'Borrador';
+
+                totalAnualActual = data.total_anual || 0;
+
+                // Cargar código de acceso del cliente
+                cargarCodigoCliente(clienteIdActual);
+
+                serviciosData = data.servicios.map(s => ({
+                    ...s,
+                    observaciones: s.observaciones || ''
+                }));
+                renderTabla();
+                actualizarTotalesDesdeAPI(data.total_mensual, data.total_anual);
+                document.getElementById('btnDescargarPDF').href = `/api/propuestas/${propuestaId}/pdf`;
+            })
+            .catch(err => console.error('Error cargando propuesta:', err));
+    }
+
+    function cargarCodigoCliente(clienteId) {
+        fetch(`/api/clientes/${clienteId}/codigo`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('clienteCodigo').textContent = data.codigo || 'Sin código';
+            })
+            .catch(() => {
+                document.getElementById('clienteCodigo').textContent = 'Error';
+            });
+    }
+
+    function copiarCodigoCliente() {
+        const codigo = document.getElementById('clienteCodigo').textContent;
+        if (codigo && codigo !== 'Sin código' && codigo !== 'Error') {
+            navigator.clipboard.writeText(codigo).then(() => {
+                showToast('Código copiado al portapapeles', 'Éxito', 'success');
+            });
+        } else {
+            showToast('No hay código para copiar', 'Aviso', 'warning');
+        }
+    }
+
+    function regenerarCodigoCliente() {
+        if (!clienteIdActual) return;
+        if (!confirm('¿Regenerar el código de acceso del cliente? El código anterior dejará de funcionar.')) return;
+        fetch(`/api/clientes/${clienteIdActual}/codigo`, {
+            method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.codigo) {
+                document.getElementById('clienteCodigo').textContent = data.codigo;
+                showToast('Código regenerado exitosamente', 'Éxito', 'success');
+            }
+        })
+        .catch(err => showToast('Error al regenerar código', 'Error', 'danger'));
+    }
+
+    function renderTabla() {
+        const tbody = document.getElementById('tbodyServicios');
+        if (!serviciosData || serviciosData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No hay servicios. Agrega uno nuevo.</td></tr>`;
+            return;
+        }
+        let html = '';
+        serviciosData.forEach((s, index) => {
+            const subtotal = (s.cantidad * s.precio_unitario).toFixed(2);
+            html += `
+                <tr>
+                    <td><input class="form-control form-control-sm" value="${s.descripcion}" onchange="actualizarServicio(${index}, 'descripcion', this.value)"></td>
+                    <td>
+                        <select class="form-select form-select-sm" onchange="actualizarServicio(${index}, 'tipo', this.value)">
+                            <option value="Setup" ${s.tipo === 'Setup' ? 'selected' : ''}>Setup</option>
+                            <option value="Mensual" ${s.tipo === 'Mensual' ? 'selected' : ''}>Mensual</option>
+                            <option value="Especial" ${s.tipo === 'Especial' ? 'selected' : ''}>Especial</option>
+                        </select>
+                    </td>
+                    <td><input type="number" class="form-control form-control-sm" value="${s.cantidad}" min="1" onchange="actualizarServicio(${index}, 'cantidad', parseInt(this.value) || 1)"></td>
+                    <td><input type="number" class="form-control form-control-sm" value="${s.precio_unitario}" step="0.01" min="0" onchange="actualizarServicio(${index}, 'precio_unitario', parseFloat(this.value) || 0)"></td>
+                    <td class="fw-bold">$${subtotal}</td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm" value="${s.observaciones}" placeholder="Observaciones..." onchange="actualizarServicio(${index}, 'observaciones', this.value)">
+                    </td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="eliminarFila(${index})"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function actualizarServicio(index, campo, valor) {
+        serviciosData[index][campo] = valor;
+        if (campo === 'cantidad' || campo === 'precio_unitario') {
+            serviciosData[index].subtotal = serviciosData[index].cantidad * serviciosData[index].precio_unitario;
+        }
+        renderTabla();
+    }
+
+    function agregarFila() {
+        serviciosData.push({
+            descripcion: 'Nuevo servicio',
+            tipo: 'Mensual',
+            cantidad: 1,
+            precio_unitario: 0,
+            subtotal: 0,
+            observaciones: ''
+        });
+        renderTabla();
+    }
+
+    function eliminarFila(index) {
+        serviciosData.splice(index, 1);
+        renderTabla();
+    }
+
+    function actualizarTotalesDesdeAPI(totalMensual, totalAnual) {
+        document.getElementById('totalMensualDisplay').textContent = `$${parseFloat(totalMensual).toFixed(2)}`;
+        document.getElementById('totalAnualDisplay').textContent = `$${parseFloat(totalAnual).toFixed(2)}`;
+        totalAnualActual = totalAnual;
+    }
+
+    function guardarPropuesta() {
+        const payload = {
+            estado: document.getElementById('estadoPropuesta').value,
+            observaciones: 'Editada manualmente',
+            observaciones_personalizadas: document.getElementById('observacionesPersonalizadas').value,
+            servicios: serviciosData
+        };
+
+        fetch(`/api/propuestas/${propuestaId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('mensajeGuardado').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                return;
+            }
+            document.getElementById('mensajeGuardado').innerHTML = `
+                <div class="alert alert-success">
+                    ✅ Propuesta guardada correctamente. 
+                    Total Mensual: $${data.total_mensual.toFixed(2)} | 
+                    Total Anual: $${data.total_anual.toFixed(2)}
+                </div>`;
+            actualizarTotalesDesdeAPI(data.total_mensual, data.total_anual);
+            document.getElementById('btnDescargarPDF').href = `/api/propuestas/${propuestaId}/pdf`;
+            cargarPropuesta();
+        })
+        .catch(err => {
+            document.getElementById('mensajeGuardado').innerHTML = `<div class="alert alert-danger">Error al guardar: ${err.message}</div>`;
+        });
+    }
+
+    function regenerarPropuesta() {
+        if (!confirm('¿Regenerar la propuesta desde los datos base del cliente? Se perderán los cambios manuales.')) return;
+        fetch(`/api/propuestas/${propuestaId}`)
+            .then(res => res.json())
+            .then(data => {
+                const clienteId = data.cliente_id;
+                return fetch('/api/propuestas/generar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cliente_id: clienteId })
+                });
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('mensajeGuardado').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    return;
+                }
+                document.getElementById('mensajeGuardado').innerHTML = `<div class="alert alert-info">Propuesta regenerada desde base. Ahora puedes editarla nuevamente.</div>`;
+                cargarPropuesta();
+            })
+            .catch(err => {
+                document.getElementById('mensajeGuardado').innerHTML = `<div class="alert alert-danger">Error al regenerar: ${err.message}</div>`;
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        cargarPropuesta();
+    });
+</script>
+{% endblock %}

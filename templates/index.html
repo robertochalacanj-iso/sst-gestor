@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}SST Gestor - Inicio{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h1 class="display-5 fw-bold text-dark">📋 Generador de Propuestas SST</h1>
+            <p class="text-muted">Basado en Decreto Ejecutivo 255 y Acuerdo Ministerial 196</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Formulario -->
+        <div class="col-lg-6">
+            <div class="card card-shadow p-4">
+                <h4 class="mb-3"><i class="bi bi-building"></i> Datos del Cliente</h4>
+                <form id="formCliente">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Razón Social *</label>
+                            <input type="text" class="form-control" id="razon_social" required placeholder="Ej: Constructora XYZ">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">RUC *</label>
+                            <input type="text" class="form-control" id="ruc" required placeholder="13 dígitos" maxlength="13">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Representante *</label>
+                            <input type="text" class="form-control" id="representante" required placeholder="Nombre completo">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Teléfono</label>
+                            <input type="text" class="form-control" id="telefono" placeholder="0999 123 456">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Email *</label>
+                            <input type="email" class="form-control" id="email" required placeholder="correo@empresa.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Sector</label>
+                            <select class="form-select" id="sector">
+                                <option value="Privado">Privado</option>
+                                <option value="Publico">Público</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-7 mb-3">
+                            <label class="form-label fw-bold">Actividad Económica *</label>
+                            <input type="text" class="form-control" id="actividad_codigo" 
+                                   list="actividadesList" 
+                                   placeholder="Ej: C1610.01" 
+                                   required>
+                            <datalist id="actividadesList"></datalist>
+                            <small class="text-muted">Escribe el código CIIU o parte de la descripción</small>
+                            <div id="nivelRiesgoDisplay" class="mt-1"></div>
+                            <div id="descripcionDisplay" class="small text-muted mt-1"></div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">N° Trabajadores *</label>
+                            <input type="number" class="form-control" id="numero_trabajadores" required min="1" placeholder="Ej: 25">
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="grupos_prioritarios">
+                                <label class="form-check-label small" for="grupos_prioritarios">
+                                    Grupos prioritarios
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2 mt-2">
+                        <i class="bi bi-plus-circle"></i> Crear Cliente y Generar Propuesta
+                    </button>
+                </form>
+                <div id="mensajeCliente" class="mt-3"></div>
+            </div>
+
+            <!-- Generar propuesta desde cliente existente -->
+            <div class="card card-shadow p-4 mt-4">
+                <h5><i class="bi bi-arrow-repeat"></i> Generar propuesta desde cliente existente</h5>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="clienteExistente">
+                        <option value="">Seleccionar cliente...</option>
+                    </select>
+                    <button class="btn btn-success" onclick="generarDesdeExistente()">
+                        <i class="bi bi-file-earmark-plus"></i> Generar
+                    </button>
+                </div>
+                <div id="mensajeExistente" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Panel de resultados -->
+        <div class="col-lg-6">
+            <div class="card card-shadow p-4">
+                <h4 class="mb-3"><i class="bi bi-file-pdf"></i> Propuesta Generada</h4>
+                <div id="resultadoPropuesta">
+                    <div class="alert alert-info text-center">
+                        <i class="bi bi-info-circle"></i> Completa el formulario para generar la propuesta.
+                    </div>
+                </div>
+                <div id="accionesPropuesta" style="display:none;" class="mt-3">
+                    <a id="btnDescargarPDF" href="#" class="btn btn-success w-100" target="_blank">
+                        <i class="bi bi-download"></i> Descargar PDF
+                    </a>
+                    <a id="btnEditarPropuesta" href="#" class="btn btn-warning w-100 mt-2" target="_blank">
+                        <i class="bi bi-pencil"></i> Editar Propuesta
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let propuestaActual = null;
+    let actividadesData = [];
+
+    function cargarActividades() {
+        fetch('/api/actividades')
+            .then(res => res.json())
+            .then(data => {
+                actividadesData = data;
+                const datalist = document.getElementById('actividadesList');
+                datalist.innerHTML = '';
+                data.forEach(act => {
+                    const option = document.createElement('option');
+                    option.value = act.codigo;
+                    option.textContent = `${act.codigo} - ${act.descripcion}`;
+                    option.dataset.riesgo = act.nivel_riesgo;
+                    option.dataset.descripcion = act.descripcion;
+                    datalist.appendChild(option);
+                });
+
+                const input = document.getElementById('actividad_codigo');
+                input.addEventListener('input', function() {
+                    const codigo = this.value.trim();
+                    const divRiesgo = document.getElementById('nivelRiesgoDisplay');
+                    const divDesc = document.getElementById('descripcionDisplay');
+                    
+                    const encontrado = data.find(a => a.codigo === codigo);
+                    if (encontrado) {
+                        const riesgo = encontrado.nivel_riesgo;
+                        const badge = riesgo === 'Bajo' ? 'badge-bajo' : riesgo === 'Medio' ? 'badge-medio' : 'badge-alto';
+                        divRiesgo.innerHTML = `<span class="badge-riesgo ${badge}">Nivel: ${riesgo}</span>`;
+                        divDesc.textContent = encontrado.descripcion;
+                    } else {
+                        const parcial = data.find(a => a.descripcion.toLowerCase().includes(codigo.toLowerCase()));
+                        if (parcial) {
+                            const riesgo = parcial.nivel_riesgo;
+                            const badge = riesgo === 'Bajo' ? 'badge-bajo' : riesgo === 'Medio' ? 'badge-medio' : 'badge-alto';
+                            divRiesgo.innerHTML = `<span class="badge-riesgo ${badge}">Nivel: ${riesgo}</span>`;
+                            divDesc.textContent = parcial.descripcion;
+                        } else {
+                            divRiesgo.innerHTML = '';
+                            divDesc.textContent = 'No se encontró actividad';
+                        }
+                    }
+                });
+
+                input.addEventListener('change', function() {
+                    this.dispatchEvent(new Event('input'));
+                });
+            })
+            .catch(err => console.error('Error cargando actividades:', err));
+    }
+
+    function cargarClientesSelector() {
+        fetch('/api/clientes')
+            .then(res => res.json())
+            .then(data => {
+                const select = document.getElementById('clienteExistente');
+                select.innerHTML = '<option value="">Seleccionar cliente...</option>';
+                data.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `${c.razon_social} (${c.ruc})`;
+                    select.appendChild(opt);
+                });
+            })
+            .catch(err => console.error('Error cargando clientes para selector:', err));
+    }
+
+    function generarDesdeExistente() {
+        const select = document.getElementById('clienteExistente');
+        const clienteId = select.value;
+        if (!clienteId) {
+            showToast('Selecciona un cliente primero', 'Aviso', 'warning');
+            return;
+        }
+        fetch('/api/propuestas/generar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: parseInt(clienteId) })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            mostrarPropuesta(data);
+            showToast('Propuesta generada exitosamente', 'Éxito', 'success');
+        })
+        .catch(err => showToast('Error al generar propuesta', 'Error', 'danger'));
+    }
+
+    function mostrarPropuesta(data) {
+        propuestaActual = data;
+        const container = document.getElementById('resultadoPropuesta');
+        const acciones = document.getElementById('accionesPropuesta');
+
+        let html = `
+            <div class="card bg-light p-3">
+                <h5 class="text-primary">Propuesta #${data.propuesta_id}</h5>
+                <div class="row mb-2">
+                    <div class="col-6"><strong>Total Mensual:</strong></div>
+                    <div class="col-6 text-success fw-bold">$${data.total_mensual.toFixed(2)}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6"><strong>Total Anual:</strong></div>
+                    <div class="col-6 text-success fw-bold">$${data.total_anual.toFixed(2)}</div>
+                </div>
+                <hr>
+                <strong>Servicios incluidos:</strong>
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-dark">
+                            <tr><th>Descripción</th><th>Tipo</th><th>Precio</th></tr>
+                        </thead>
+                        <tbody>
+        `;
+        data.servicios.forEach(s => {
+            html += `<tr>
+                        <td>${s.descripcion}</td>
+                        <td><span class="badge ${s.tipo === 'Setup' ? 'bg-warning text-dark' : s.tipo === 'Mensual' ? 'bg-primary' : 'bg-info'}">${s.tipo}</span></td>
+                        <td>$${s.precio_unitario.toFixed(2)}</td>
+                    </tr>`;
+        });
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+
+        acciones.style.display = 'block';
+        document.getElementById('btnDescargarPDF').href = `/api/propuestas/${data.propuesta_id}/pdf`;
+        document.getElementById('btnEditarPropuesta').href = `/editar-propuesta/${data.propuesta_id}`;
+    }
+
+    document.getElementById('formCliente').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const clienteData = {
+            razon_social: document.getElementById('razon_social').value.trim(),
+            ruc: document.getElementById('ruc').value.trim(),
+            representante: document.getElementById('representante').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            telefono: document.getElementById('telefono').value.trim(),
+            sector: document.getElementById('sector').value,
+            actividad_codigo: document.getElementById('actividad_codigo').value.trim(),
+            numero_trabajadores: parseInt(document.getElementById('numero_trabajadores').value),
+            tiene_grupos_prioritarios: document.getElementById('grupos_prioritarios').checked
+        };
+
+        if (!clienteData.razon_social || !clienteData.ruc || !clienteData.representante || !clienteData.email || !clienteData.actividad_codigo || !clienteData.numero_trabajadores) {
+            showToast('Todos los campos con * son obligatorios', 'Error', 'danger');
+            return;
+        }
+
+        const mensajeDiv = document.getElementById('mensajeCliente');
+        mensajeDiv.innerHTML = '<div class="alert alert-info">Creando cliente...</div>';
+
+        fetch('/api/clientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clienteData)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                mensajeDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            mensajeDiv.innerHTML = `<div class="alert alert-success">✅ Cliente creado con ID: ${data.id}</div>`;
+            showToast('Cliente creado exitosamente', 'Éxito', 'success');
+
+            return fetch('/api/propuestas/generar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cliente_id: data.id })
+            });
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.error) {
+                mensajeDiv.innerHTML += `<div class="alert alert-danger">${data.error}</div>`;
+                showToast(data.error, 'Error', 'danger');
+                return;
+            }
+            if (data) {
+                mostrarPropuesta(data);
+                cargarClientesSelector();
+                document.getElementById('formCliente').reset();
+                document.getElementById('nivelRiesgoDisplay').innerHTML = '';
+                document.getElementById('descripcionDisplay').textContent = '';
+                mensajeDiv.innerHTML += '<div class="alert alert-success mt-2">✅ Propuesta generada automáticamente</div>';
+                showToast('Propuesta generada exitosamente', 'Éxito', 'success');
+            }
+        })
+        .catch(err => {
+            showToast('Error al procesar la solicitud', 'Error', 'danger');
+            mensajeDiv.innerHTML = '<div class="alert alert-danger">Error al procesar la solicitud</div>';
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        cargarActividades();
+        cargarClientesSelector();
+    });
+</script>
+{% endblock %}

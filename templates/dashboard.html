@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SST Gestor{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary shadow">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-people"></i> Clientes</h5>
+                    <h2 id="totalClientes" class="display-4">-</h2>
+                    <span>registrados</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success shadow">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Propuestas</h5>
+                    <h2 id="totalPropuestas" class="display-4">-</h2>
+                    <span>generadas</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-dark bg-warning shadow">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-currency-dollar"></i> Ingresos</h5>
+                    <h2 id="ingresosTotales" class="display-4">-</h2>
+                    <span>USD proyectados</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info shadow">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-check-circle"></i> Activas</h5>
+                    <h2 id="propuestasActivas" class="display-4">-</h2>
+                    <span>propuestas en curso</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-pie-chart"></i> Propuestas por Estado
+                </div>
+                <div class="card-body" id="estadosContainer">
+                    <p class="text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-clock-history"></i> Últimas Propuestas
+                </div>
+                <div class="card-body" id="ultimasPropuestas">
+                    <p class="text-muted">Cargando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-download"></i> Exportar Datos
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-3 flex-wrap">
+                        <a href="/api/exportar/clientes" class="btn btn-primary">
+                            <i class="bi bi-people"></i> Exportar Clientes (Excel)
+                        </a>
+                        <a href="/api/exportar/propuestas" class="btn btn-success">
+                            <i class="bi bi-file-earmark-text"></i> Exportar Propuestas (Excel)
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/dashboard')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('totalClientes').textContent = data.total_clientes;
+            document.getElementById('totalPropuestas').textContent = data.total_propuestas;
+            document.getElementById('ingresosTotales').textContent = `$${data.ingresos_totales.toFixed(0)}`;
+            const activas = data.estados?.Enviada || 0;
+            document.getElementById('propuestasActivas').textContent = activas;
+
+            const container = document.getElementById('estadosContainer');
+            let html = '<div class="list-group">';
+            const colores = { 'Borrador': 'secondary', 'Enviada': 'primary', 'Aceptada': 'success', 'Rechazada': 'danger' };
+            for (const [estado, count] of Object.entries(data.estados || {})) {
+                html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>${estado}</span>
+                            <span class="badge bg-${colores[estado] || 'secondary'} rounded-pill">${count}</span>
+                        </div>`;
+            }
+            html += '</div>';
+            container.innerHTML = html || '<p class="text-muted">Sin propuestas registradas</p>';
+        })
+        .catch(err => console.error(err));
+
+    fetch('/api/propuestas')
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('ultimasPropuestas');
+            if (data.length === 0) {
+                container.innerHTML = '<p class="text-muted">No hay propuestas registradas</p>';
+                return;
+            }
+            const ultimas = data.slice(0, 5);
+            let html = '<ul class="list-group">';
+            ultimas.forEach(p => {
+                html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><strong>${p.cliente}</strong> #${p.id}</span>
+                            <span class="badge bg-primary">$${p.total_anual.toFixed(0)}</span>
+                        </li>`;
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+        })
+        .catch(err => console.error(err));
+});
+</script>
+{% endblock %}
