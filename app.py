@@ -432,10 +432,17 @@ def requiere_admin(f):
 # ------------------- ENDPOINTS API -------------------
 @app.route('/')
 def index():
+    # RAÍZ: Siempre pública, muestra el cuadro del código para el cliente
+    return render_template('acceso_cliente.html')
+
+@app.route('/admin')
+def admin_login():
     auth = request.authorization
     if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
+        # Si el admin pone bien la clave, lo mandamos al dashboard interno
         return render_template('dashboard.html')
-    return render_template('acceso_cliente.html')
+    # Si no tiene clave, activamos la ventanita para que la pida
+    return jsonify({'error': 'Acceso denegado'}), 401, {'WWW-Authenticate': 'Basic realm="Login de Administrador"'}
 
 @app.route('/cliente-login')
 def cliente_login():
