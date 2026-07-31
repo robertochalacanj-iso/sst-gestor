@@ -417,6 +417,7 @@ def generar_servicios_base(cliente):
     })
 
     return servicios
+
 from functools import wraps
 
 def requiere_admin(f):
@@ -424,9 +425,11 @@ def requiere_admin(f):
     def decorated_function(*args, **kwargs):
         auth = request.authorization
         if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
-            return jsonify({'error': 'Acceso denegado. Se requiere autenticación de administrador.'}), 401
+            # Esta línea es la clave: devuelve un 401 y activa la ventanita del navegador
+            return jsonify({'error': 'Acceso denegado'}), 401, {'WWW-Authenticate': 'Basic realm="Login de Administrador"'}
         return f(*args, **kwargs)
     return decorated_function
+
 # ------------------- ENDPOINTS API -------------------
 @app.route('/')
 def index():
@@ -1345,6 +1348,7 @@ def descargar_pdf(propuesta_id):
 
 # ------------------- EXPORTAR A EXCEL -------------------
 @app.route('/api/exportar/clientes', methods=['GET'])
+@requiere_admin
 def exportar_clientes_excel():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -1386,6 +1390,7 @@ def exportar_clientes_excel():
     return send_file(buffer, as_attachment=True, download_name=f'clientes_{datetime.now().strftime("%Y%m%d")}.xlsx')
 
 @app.route('/api/exportar/propuestas', methods=['GET'])
+@requiere_admin
 def exportar_propuestas_excel():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
