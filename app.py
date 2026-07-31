@@ -418,6 +418,10 @@ def generar_servicios_base(cliente):
 # ------------------- ENDPOINTS API -------------------
 @app.route('/')
 def index():
+    return render_template('dashboard.html')
+
+@app.route('/cliente-login')
+def cliente_login():
     return render_template('acceso_cliente.html')
 
 @app.route('/dashboard')
