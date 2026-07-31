@@ -21,6 +21,9 @@ from openpyxl.utils import get_column_letter
 app = Flask(__name__)
 app.secret_key = 'sst_gestor_secreto_2026'
 CORS(app)
+# ------------------- CONFIGURACIÓN DE ADMINISTRADOR -------------------
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "sst2026*"  # Puedes cambiar esta contraseña por la que quieras
 
 # ------------------- CONFIGURACIÓN DE ARCHIVOS -------------------
 UPLOAD_FOLDER = 'uploads'
@@ -414,29 +417,46 @@ def generar_servicios_base(cliente):
     })
 
     return servicios
+from functools import wraps
 
+def requiere_admin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth = request.authorization
+        if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+            return jsonify({'error': 'Acceso denegado. Se requiere autenticación de administrador.'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 # ------------------- ENDPOINTS API -------------------
 @app.route('/')
 def index():
-    return render_template('dashboard.html')
+    auth = request.authorization
+    if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
+        return render_template('dashboard.html')
+    # Si no estás logueado, te manda al login del cliente
+    return render_template('acceso_cliente.html')
 
 @app.route('/cliente-login')
 def cliente_login():
     return render_template('acceso_cliente.html')
 
 @app.route('/dashboard')
+@requiere_admin
 def dashboard():
     return render_template('dashboard.html')
 
 @app.route('/entregables')
+@requiere_admin
 def entregables():
     return render_template('entregables.html')
 
 @app.route('/clientes')
+@requiere_admin
 def clientes():
     return render_template('clientes.html')
 
 @app.route('/propuestas')
+@requiere_admin
 def propuestas():
     return render_template('propuestas.html')
 
