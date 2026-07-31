@@ -5,7 +5,7 @@ import csv
 import uuid
 from datetime import datetime, date, timedelta
 from io import BytesIO
-from flask import Flask, request, jsonify, send_file, render_template, send_from_directory
+from flask import Flask, request, jsonify, send_file, render_template, send_from_directory, session, redirect, url_for
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from reportlab.lib.pagesizes import A4
@@ -26,6 +26,34 @@ CORS(app)
 # ------------------- CONFIGURACIÓN DE ADMINISTRADOR -------------------
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "sst2026*"
+
+# Decorador para proteger páginas (revisa si hay sesión activa)
+def requiere_admin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin_logged_in' not in session:
+            return redirect('/admin/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Página de Login para el Administrador
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect('/dashboard')
+        else:
+            return render_template('admin_login.html', error='Usuario o contraseña incorrectos')
+    return render_template('admin_login.html')
+
+# Cerrar sesión
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect('/')
 
 # ------------------- CONFIGURACIÓN DE ARCHIVOS -------------------
 UPLOAD_FOLDER = 'uploads'
@@ -420,34 +448,35 @@ def generar_servicios_base(cliente):
 
     return servicios
 
-def requiere_admin(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth = request.authorization
-        if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
-            return jsonify({'error': 'Acceso denegado'}), 401, {'WWW-Authenticate': 'Basic realm="Login de Administrador"'}
-        return f(*args, **kwargs)
-    return decorated_function
-
-# ------------------- ENDPOINTS API -------------------
+# ------------------- ENDPOINTS PÚBLICOS Y DE ADMIN -------------------
 @app.route('/')
 def index():
     # RAÍZ: Siempre pública, muestra el cuadro del código para el cliente
     return render_template('acceso_cliente.html')
 
-@app.route('/admin')
-def admin_login():
-    auth = request.authorization
-    if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
-        # Si el admin pone bien la clave, lo mandamos al dashboard interno
-        return render_template('dashboard.html')
-    # Si no tiene clave, activamos la ventanita para que la pida
-    return jsonify({'error': 'Acceso denegado'}), 401, {'WWW-Authenticate': 'Basic realm="Login de Administrador"'}
-
 @app.route('/cliente-login')
 def cliente_login():
     return render_template('acceso_cliente.html')
 
+@app.route('/cliente/<codigo>')
+def portal_cliente(codigo):
+    conn = sqlite3.connect('sst.db')
+    c = conn.cursor()
+    c.execute("SELECT id, razon_social FROM clientes WHERE codigo_acceso=?", (codigo,))
+    cliente = c.fetchone()
+    conn.close()
+    if not cliente:
+        return render_template('cliente_error.html', mensaje='Código de acceso inválido', es_cliente=True)
+    return render_template(
+        'cliente_portal.html',
+        cliente_id=cliente[0],
+        cliente_nombre=cliente[1],
+        codigo=codigo,
+        es_cliente=True,
+        codigo_cliente=codigo
+    )
+
+# ------------------- ENDPOINTS PROTEGIDOS POR ADMIN -------------------
 @app.route('/dashboard')
 @requiere_admin
 def dashboard():
@@ -469,26 +498,9 @@ def propuestas():
     return render_template('propuestas.html')
 
 @app.route('/editar-propuesta/<int:propuesta_id>')
+@requiere_admin
 def editar_propuesta(propuesta_id):
     return render_template('editar_propuesta.html', propuesta_id=propuesta_id)
-
-@app.route('/cliente/<codigo>')
-def portal_cliente(codigo):
-    conn = sqlite3.connect('sst.db')
-    c = conn.cursor()
-    c.execute("SELECT id, razon_social FROM clientes WHERE codigo_acceso=?", (codigo,))
-    cliente = c.fetchone()
-    conn.close()
-    if not cliente:
-        return render_template('cliente_error.html', mensaje='Código de acceso inválido', es_cliente=True)
-    return render_template(
-        'cliente_portal.html',
-        cliente_id=cliente[0],
-        cliente_nombre=cliente[1],
-        codigo=codigo,
-        es_cliente=True,
-        codigo_cliente=codigo
-    )
 
 @app.route('/api/dashboard', methods=['GET'])
 @requiere_admin
