@@ -433,7 +433,10 @@ def requiere_admin(f):
 # ------------------- ENDPOINTS API -------------------
 @app.route('/')
 def index():
-    # Esta es la página pública de bienvenida / Portal del Cliente
+    auth = request.authorization
+    if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
+        return render_template('dashboard.html')
+    # Si no estás logueado, te manda al login del cliente
     return render_template('acceso_cliente.html')
 
 @app.route('/cliente-login')
