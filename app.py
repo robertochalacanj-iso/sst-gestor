@@ -17,13 +17,15 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = 'sst_gestor_secreto_2026'
 CORS(app)
+
 # ------------------- CONFIGURACIÓN DE ADMINISTRADOR -------------------
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "sst2026*"  # Puedes cambiar esta contraseña por la que quieras
+ADMIN_PASSWORD = "sst2026*"
 
 # ------------------- CONFIGURACIÓN DE ARCHIVOS -------------------
 UPLOAD_FOLDER = 'uploads'
@@ -418,14 +420,11 @@ def generar_servicios_base(cliente):
 
     return servicios
 
-from functools import wraps
-
 def requiere_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth = request.authorization
         if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
-            # Esta línea es la clave: devuelve un 401 y activa la ventanita del navegador
             return jsonify({'error': 'Acceso denegado'}), 401, {'WWW-Authenticate': 'Basic realm="Login de Administrador"'}
         return f(*args, **kwargs)
     return decorated_function
@@ -436,7 +435,6 @@ def index():
     auth = request.authorization
     if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
         return render_template('dashboard.html')
-    # Si no estás logueado, te manda al login del cliente
     return render_template('acceso_cliente.html')
 
 @app.route('/cliente-login')
@@ -475,7 +473,6 @@ def portal_cliente(codigo):
     cliente = c.fetchone()
     conn.close()
     if not cliente:
-        # Pasar también es_cliente=True para que el navbar sea el del cliente
         return render_template('cliente_error.html', mensaje='Código de acceso inválido', es_cliente=True)
     return render_template(
         'cliente_portal.html',
@@ -487,6 +484,7 @@ def portal_cliente(codigo):
     )
 
 @app.route('/api/dashboard', methods=['GET'])
+@requiere_admin
 def api_dashboard():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -507,6 +505,7 @@ def api_dashboard():
     })
 
 @app.route('/api/actividades', methods=['GET'])
+@requiere_admin
 def listar_actividades():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -516,6 +515,7 @@ def listar_actividades():
     return jsonify([{'codigo': r[0], 'descripcion': r[1], 'nivel_riesgo': r[2]} for r in rows])
 
 @app.route('/api/clientes', methods=['GET'])
+@requiere_admin
 def listar_clientes():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -530,6 +530,7 @@ def listar_clientes():
     } for r in rows])
 
 @app.route('/api/clientes', methods=['POST'])
+@requiere_admin
 def crear_cliente():
     data = request.json
     conn = sqlite3.connect('sst.db')
@@ -553,6 +554,7 @@ def crear_cliente():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/clientes/<int:cliente_id>', methods=['DELETE'])
+@requiere_admin
 def eliminar_cliente(cliente_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -572,6 +574,7 @@ def eliminar_cliente(cliente_id):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/clientes/<int:cliente_id>/codigo', methods=['GET'])
+@requiere_admin
 def obtener_codigo_cliente(cliente_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -583,6 +586,7 @@ def obtener_codigo_cliente(cliente_id):
     return jsonify({'codigo': None}), 404
 
 @app.route('/api/clientes/<int:cliente_id>/codigo', methods=['POST'])
+@requiere_admin
 def regenerar_codigo_cliente(cliente_id):
     nuevo_codigo = generar_codigo_acceso()
     conn = sqlite3.connect('sst.db')
@@ -593,6 +597,7 @@ def regenerar_codigo_cliente(cliente_id):
     return jsonify({'codigo': nuevo_codigo})
 
 @app.route('/api/propuestas/generar', methods=['POST'])
+@requiere_admin
 def generar_propuesta():
     data = request.json
     cliente_id = data.get('cliente_id')
@@ -645,6 +650,7 @@ def generar_propuesta():
     })
 
 @app.route('/api/propuestas/<int:propuesta_id>', methods=['GET'])
+@requiere_admin
 def obtener_propuesta(propuesta_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -684,6 +690,7 @@ def obtener_propuesta(propuesta_id):
     })
 
 @app.route('/api/propuestas/<int:propuesta_id>', methods=['PUT'])
+@requiere_admin
 def actualizar_propuesta(propuesta_id):
     data = request.json
     conn = sqlite3.connect('sst.db')
@@ -759,6 +766,7 @@ def actualizar_propuesta(propuesta_id):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/propuestas', methods=['GET'])
+@requiere_admin
 def listar_propuestas():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -776,6 +784,7 @@ def listar_propuestas():
     } for r in rows])
 
 @app.route('/api/propuestas/<int:propuesta_id>', methods=['DELETE'])
+@requiere_admin
 def eliminar_propuesta(propuesta_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -793,6 +802,7 @@ def eliminar_propuesta(propuesta_id):
 
 # ------------------- ENDPOINTS PARA SEGUIMIENTO -------------------
 @app.route('/api/propuestas/<int:propuesta_id>/servicios', methods=['GET'])
+@requiere_admin
 def obtener_servicios_propuesta(propuesta_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -802,6 +812,7 @@ def obtener_servicios_propuesta(propuesta_id):
     return jsonify(servicios)
 
 @app.route('/api/proyectos', methods=['GET'])
+@requiere_admin
 def listar_proyectos():
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -820,6 +831,7 @@ def listar_proyectos():
     } for r in rows])
 
 @app.route('/api/proyectos', methods=['POST'])
+@requiere_admin
 def crear_proyecto():
     data = request.json
     conn = sqlite3.connect('sst.db')
@@ -861,6 +873,7 @@ def crear_proyecto():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/proyectos/<int:proyecto_id>', methods=['DELETE'])
+@requiere_admin
 def eliminar_proyecto(proyecto_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -875,6 +888,7 @@ def eliminar_proyecto(proyecto_id):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/entregables', methods=['GET'])
+@requiere_admin
 def listar_entregables():
     proyecto_id = request.args.get('proyecto_id')
     conn = sqlite3.connect('sst.db')
@@ -904,6 +918,7 @@ def listar_entregables():
     } for r in rows])
 
 @app.route('/api/entregables', methods=['POST'])
+@requiere_admin
 def crear_entregable():
     data = request.json
     conn = sqlite3.connect('sst.db')
@@ -923,6 +938,7 @@ def crear_entregable():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/entregables/<int:entregable_id>', methods=['PUT'])
+@requiere_admin
 def actualizar_entregable(entregable_id):
     # Si es una solicitud multipart (con archivo)
     if request.files:
@@ -972,6 +988,7 @@ def actualizar_entregable(entregable_id):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/entregables/<int:entregable_id>', methods=['DELETE'])
+@requiere_admin
 def eliminar_entregable(entregable_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
@@ -1053,6 +1070,7 @@ def cliente_descargar_archivo(codigo, entregable_id):
 
 # ------------------- GENERAR PDF DE SEGUIMIENTO -------------------
 @app.route('/api/entregables/pdf', methods=['GET'])
+@requiere_admin
 def entregables_pdf():
     proyecto_id = request.args.get('proyecto_id')
     propuesta_id = request.args.get('propuesta_id')
@@ -1202,6 +1220,7 @@ def entregables_pdf():
 
 # ------------------- FUNCIÓN DESCARGA PDF PROPUESTA -------------------
 @app.route('/api/propuestas/<int:propuesta_id>/pdf', methods=['GET'])
+@requiere_admin
 def descargar_pdf(propuesta_id):
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
