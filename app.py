@@ -458,6 +458,7 @@ def portal_cliente(codigo):
         es_cliente=True,
         codigo_cliente=codigo
     )
+
 @app.route('/api/dashboard', methods=['GET'])
 def api_dashboard():
     conn = sqlite3.connect('sst.db')
@@ -1035,8 +1036,8 @@ def entregables_pdf():
     
     query = '''
         SELECT e.id, e.nombre, e.estado, e.fecha_limite, e.fecha_entrega, 
-               e.descripcion, c.razon_social as cliente, pr.id as propuesta_id,
-               p.nombre as proyecto_nombre
+               e.descripcion, c.razon_social as cliente, p.cliente_id as cliente_id,
+               pr.id as propuesta_id, p.nombre as proyecto_nombre
         FROM entregables e
         JOIN proyectos p ON e.proyecto_id = p.id
         JOIN clientes c ON p.cliente_id = c.id
@@ -1058,14 +1059,26 @@ def entregables_pdf():
     
     c.execute(query, params)
     rows = c.fetchall()
-    conn.close()
     
     if not rows:
+        conn.close()
         return jsonify({'error': 'No hay entregables para generar el PDF'}), 404
     
     cliente_nombre = rows[0][6] if rows[0][6] else 'N/A'
-    propuesta_display = f"#{rows[0][7]}" if rows[0][7] else 'Sin propuesta asociada'
+    cliente_id_found = rows[0][7]
+    propuesta_display = f"#{rows[0][8]}" if rows[0][8] else 'Sin propuesta asociada'
     
+    # Obtener el código de acceso del cliente
+    codigo_acceso = 'No disponible'
+    if cliente_id_found:
+        c_cliente = conn.cursor()
+        c_cliente.execute("SELECT codigo_acceso FROM clientes WHERE id=?", (cliente_id_found,))
+        codigo_row = c_cliente.fetchone()
+        if codigo_row:
+            codigo_acceso = codigo_row[0]
+    
+    conn.close()
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
     
@@ -1142,29 +1155,17 @@ def entregables_pdf():
         estilo_normal
     ))
     elementos.append(Spacer(1, 0.3*inch))
+    
+    # --- SECCIÓN PARA EL CLIENTE EN EL PDF (CORREGIDO) ---
+    elementos.append(Spacer(1, 0.5*inch))
+    elementos.append(Paragraph("<b>INFORMACIÓN PARA EL CLIENTE</b>", styles['Heading4']))
+    elementos.append(Paragraph(f"<b>Código de acceso:</b> {codigo_acceso}", estilo_cabecera))
+    elementos.append(Paragraph(f"<b>Enlace a tu portal de seguimiento:</b>", estilo_cabecera))
+    enlace = f"https://sst-gestor.onrender.com/cliente/{codigo_acceso}"
+    elementos.append(Paragraph(f"<a href='{enlace}'>{enlace}</a>", estilo_normal))
+    elementos.append(Paragraph("Usa este código para consultar el estado de tu proyecto y descargar documentos.", estilo_normal))
+    
     elementos.append(Paragraph("Este reporte ha sido generado automáticamente desde el sistema de seguimiento de la consultoría.", estilo_observacion))
-# ... (código anterior de la función descargar_pdf)
-
-# --- SECCIÓN PARA EL CLIENTE ---
-# Obtener el código de acceso del cliente
-cliente_id = row[1]  # Asumiendo que row[1] es el cliente_id
-conn_cliente = sqlite3.connect('sst.db')
-c_cliente = conn_cliente.cursor()
-c_cliente.execute("SELECT codigo_acceso FROM clientes WHERE id=?", (cliente_id,))
-codigo_row = c_cliente.fetchone()
-codigo_acceso = codigo_row[0] if codigo_row else 'No disponible'
-conn_cliente.close()
-
-# Agregar la información al PDF
-elementos.append(Spacer(1, 0.5*inch))
-elementos.append(Paragraph("<b>INFORMACIÓN PARA EL CLIENTE</b>", styles['Heading4']))
-elementos.append(Paragraph(f"<b>Código de acceso:</b> {codigo_acceso}", estilo_cabecera))
-elementos.append(Paragraph(f"<b>Enlace a tu portal de seguimiento:</b>", estilo_cabecera))
-enlace = f"https://sst-gestor.onrender.com/cliente/{codigo_acceso}"
-elementos.append(Paragraph(f"<a href='{enlace}'>{enlace}</a>", estilo_normal))
-elementos.append(Paragraph("Usa este código para consultar el estado de tu proyecto y descargar documentos.", estilo_normal))
-
-# ... (resto del código para construir el PDF)    
 
     doc.build(elementos)
     pdf = buffer.getvalue()
