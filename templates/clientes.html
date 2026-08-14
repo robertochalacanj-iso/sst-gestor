@@ -6,8 +6,7 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-people"></i> Gestión de Clientes</h2>
-        <!-- CAMBIO AQUÍ: Botón modificado para abrir el Modal (#modalNuevoCliente) en lugar de ir a "/" -->
-        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalNuevoCliente">
+        <button type="button" class="btn btn-primary" onclick="abrirModalNuevo()">
             <i class="bi bi-plus-circle"></i> Nuevo Cliente
         </button>
     </div>
@@ -35,20 +34,16 @@
     </div>
 </div>
 
-<!-- ============================================ -->
-<!-- MODAL PARA CREAR NUEVO CLIENTE (AÑADIDO AQUÍ) -->
-<!-- ============================================ -->
-<div class="modal fade" id="modalNuevoCliente" tabindex="-1" role="dialog" aria-labelledby="modalNuevoClienteLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+<!-- ============ MODAL NUEVO CLIENTE (Bootstrap 5) ============ -->
+<div class="modal fade" id="modalNuevoCliente" tabindex="-1" aria-labelledby="modalNuevoClienteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="modalNuevoClienteLabel"><i class="bi bi-person-plus-fill"></i> Registrar Nuevo Cliente</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="formNuevoCliente">
+            <form id="formNuevoCliente" novalidate>
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalNuevoClienteLabel"><i class="bi bi-person-plus-fill"></i> Registrar Nuevo Cliente</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Razón Social *</label>
@@ -56,7 +51,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">RUC *</label>
-                            <input type="text" class="form-control" name="ruc" required>
+                            <input type="text" class="form-control" name="ruc" required minlength="11" maxlength="13">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Representante Legal *</label>
@@ -75,7 +70,7 @@
                             <input type="text" class="form-control" name="sector">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Actividad Económica (Código Anexo 2) *</label>
+                            <label class="form-label">Actividad Económica (Anexo 2) *</label>
                             <select class="form-control" name="actividad_codigo" required>
                                 <option value="">Seleccione una actividad...</option>
                             </select>
@@ -88,75 +83,106 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="tiene_grupos_prioritarios" value="1">
                                 <label class="form-check-label">
-                                    ¿La empresa cuenta con grupos de atención prioritaria (discapacidad, etc.)?
+                                    ¿La empresa cuenta con grupos de atención prioritaria?
                                 </label>
                             </div>
                         </div>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarCliente()"><i class="bi bi-save"></i> Guardar Cliente</button>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnGuardarCliente">
+                        <i class="bi bi-save"></i> Guardar Cliente
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- ============================================ -->
-<!-- JAVASCRIPT (Mantenido y mejorado)             -->
-<!-- ============================================ -->
 <script>
-    // 1. Cargar lista de actividades económicas al abrir el modal
-    function cargarActividades() {
-        fetch('/api/actividades')
-            .then(res => res.json())
-            .then(data => {
-                const select = document.querySelector('select[name="actividad_codigo"]');
-                data.forEach(act => {
-                    const option = document.createElement('option');
-                    option.value = act.codigo;
-                    option.textContent = `${act.codigo} - ${act.descripcion} (${act.nivel_riesgo})`;
-                    select.appendChild(option);
-                });
-            });
+    let modalInstance = null;
+
+    function abrirModalNuevo() {
+        const el = document.getElementById('modalNuevoCliente');
+        modalInstance = new bootstrap.Modal(el);
+        modalInstance.show();
     }
 
-    // 2. Función para guardar el cliente desde el modal
-    function guardarCliente() {
-        const form = document.getElementById('formNuevoCliente');
-        const formData = new FormData(form);
+    function cerrarModalNuevo() {
+        if (modalInstance) modalInstance.hide();
+    }
+
+    // Cargar actividades al abrir el modal
+    document.getElementById('modalNuevoCliente').addEventListener('shown.bs.modal', function () {
+        const select = document.querySelector('select[name="actividad_codigo"]');
+        if (select.options.length <= 1) {
+            fetch('/api/actividades')
+                .then(res => res.json())
+                .then(data => {
+                    data.forEach(act => {
+                        const opt = document.createElement('option');
+                        opt.value = act.codigo;
+                        opt.textContent = `${act.codigo} - ${act.descripcion} (${act.nivel_riesgo})`;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error('Error cargando actividades:', err));
+        }
+    });
+
+    // Guardar cliente (con validación HTML5)
+    document.getElementById('formNuevoCliente').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!this.checkValidity()) {
+            this.classList.add('was-validated');
+            showToast('Complete los campos obligatorios (*)', 'Validación', 'warning');
+            return;
+        }
+
+        const formData = new FormData(this);
         const data = Object.fromEntries(formData.entries());
-        // Asegurar que el checkbox se envíe como 0 o 1
         data.tiene_grupos_prioritarios = formData.get('tiene_grupos_prioritarios') ? 1 : 0;
+        data.numero_trabajadores = parseInt(data.numero_trabajadores, 10);
+
+        const btn = document.getElementById('btnGuardarCliente');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
 
         fetch('/api/clientes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.error) {
-                showToast(data.error, 'Error', 'danger');
+        .then(res => res.json().then(j => ({ ok: res.ok, j })))
+        .then(({ ok, j }) => {
+            if (!ok) {
+                showToast(j.error || 'Error al crear el cliente', 'Error', 'danger');
                 return;
             }
-            // Cerrar el modal y recargar la tabla
-            $('#modalNuevoCliente').modal('hide');
-            showToast(`Cliente "${data.id}" creado con código: ${data.codigo_acceso}`, 'Éxito', 'success');
-            form.reset();
+            cerrarModalNuevo();
+            showToast(`Cliente creado. Código de acceso: ${j.codigo_acceso}`, 'Éxito', 'success');
+            document.getElementById('formNuevoCliente').reset();
+            document.getElementById('formNuevoCliente').classList.remove('was-validated');
             cargarClientes();
         })
-        .catch(err => showToast('Error al crear cliente', 'Error', 'danger'));
-    }
+        .catch(err => {
+            console.error(err);
+            showToast('Error de conexión al crear el cliente', 'Error', 'danger');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save"></i> Guardar Cliente';
+        });
+    });
 
-    // 3. Cargar la tabla de clientes
     function cargarClientes() {
         fetch('/api/clientes')
             .then(res => res.json())
             .then(data => {
                 const tbody = document.getElementById('tbodyClientes');
-                if (data.length === 0) {
+                if (!Array.isArray(data) || data.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay clientes registrados</td></tr>';
                     return;
                 }
@@ -170,23 +196,15 @@
                         <td><span class="badge bg-secondary">${c.numero_trabajadores}</span></td>
                         <td><span class="badge bg-info">${c.codigo_acceso || 'Sin código'}</span></td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="generarPropuesta(${c.id})" title="Generar propuesta">
-                                <i class="bi bi-file-earmark-plus"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="eliminarCliente(${c.id})" title="Eliminar cliente">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                            <button class="btn btn-sm btn-warning" onclick="regenerarCodigo(${c.id})" title="Regenerar código">
-                                <i class="bi bi-arrow-repeat"></i>
-                            </button>
-                            <button class="btn btn-sm btn-success" onclick="copiarCodigo('${c.codigo_acceso || ''}')" title="Copiar código">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="generarPropuesta(${c.id})" title="Generar propuesta"><i class="bi bi-file-earmark-plus"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="eliminarCliente(${c.id})" title="Eliminar"><i class="bi bi-trash"></i></button>
+                            <button class="btn btn-sm btn-warning" onclick="regenerarCodigo(${c.id})" title="Regenerar código"><i class="bi bi-arrow-repeat"></i></button>
+                            <button class="btn btn-sm btn-success" onclick="copiarCodigo('${c.codigo_acceso || ''}')" title="Copiar"><i class="bi bi-clipboard"></i></button>
                         </td>
                     </tr>
                 `).join('');
             })
-            .catch(err => console.error('Error:', err));
+            .catch(err => console.error('Error cargando clientes:', err));
     }
 
     function generarPropuesta(clienteId) {
@@ -197,67 +215,41 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (data.error) {
-                showToast(data.error, 'Error', 'danger');
-                return;
-            }
-            showToast(`Propuesta #${data.propuesta_id} generada exitosamente`, 'Éxito', 'success');
+            if (data.error) { showToast(data.error, 'Error', 'danger'); return; }
+            showToast(`Propuesta #${data.propuesta_id} generada`, 'Éxito', 'success');
             window.location.href = `/editar-propuesta/${data.propuesta_id}`;
         })
         .catch(err => showToast('Error al generar propuesta', 'Error', 'danger'));
     }
 
     function eliminarCliente(clienteId) {
-        if (!confirm('¿Estás seguro de eliminar este cliente? Se eliminarán también sus propuestas y proyectos.')) return;
+        if (!confirm('¿Eliminar este cliente y todas sus propuestas/proyectos?')) return;
         fetch(`/api/clientes/${clienteId}`, { method: 'DELETE' })
             .then(res => res.json())
             .then(data => {
-                if (data.error) {
-                    showToast(data.error, 'Error', 'danger');
-                } else {
-                    showToast('Cliente eliminado correctamente', 'Éxito', 'success');
-                    cargarClientes();
-                }
+                if (data.error) showToast(data.error, 'Error', 'danger');
+                else { showToast('Cliente eliminado', 'Éxito', 'success'); cargarClientes(); }
             })
-            .catch(err => showToast('Error al eliminar cliente', 'Error', 'danger'));
+            .catch(err => showToast('Error al eliminar', 'Error', 'danger'));
     }
 
     function regenerarCodigo(clienteId) {
-        if (!confirm('¿Regenerar el código de acceso? El código anterior dejará de funcionar.')) return;
-        fetch(`/api/clientes/${clienteId}/codigo`, {
-            method: 'POST'
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.codigo) {
-                showToast('Código regenerado exitosamente', 'Éxito', 'success');
-                cargarClientes();
-            }
-        })
-        .catch(err => showToast('Error al regenerar código', 'Error', 'danger'));
+        if (!confirm('¿Regenerar el código de acceso?')) return;
+        fetch(`/api/clientes/${clienteId}/codigo`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.codigo) { showToast('Código regenerado', 'Éxito', 'success'); cargarClientes(); }
+            })
+            .catch(err => showToast('Error al regenerar código', 'Error', 'danger'));
     }
 
     function copiarCodigo(codigo) {
-        if (!codigo) {
-            showToast('No hay código para copiar', 'Aviso', 'warning');
-            return;
-        }
+        if (!codigo) { showToast('No hay código para copiar', 'Aviso', 'warning'); return; }
         const url = `${window.location.origin}/cliente/${codigo}`;
-        const textoCompleto = `Código: ${codigo}\nURL: ${url}`;
-        navigator.clipboard.writeText(textoCompleto).then(() => {
-            showToast('Código y URL copiados al portapapeles', 'Éxito', 'success');
-        });
+        navigator.clipboard.writeText(`Código: ${codigo}\nURL: ${url}`)
+            .then(() => showToast('Código copiado', 'Éxito', 'success'));
     }
 
-    // Al cargar la página, cargamos la tabla y las actividades
-    document.addEventListener('DOMContentLoaded', function() {
-        cargarClientes();
-        // Al abrir el modal, cargar el select de actividades
-        $('#modalNuevoCliente').on('shown.bs.modal', function() {
-            if (document.querySelector('select[name="actividad_codigo"]').options.length <= 1) {
-                cargarActividades();
-            }
-        });
-    });
+    document.addEventListener('DOMContentLoaded', cargarClientes);
 </script>
 {% endblock %}

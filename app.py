@@ -551,47 +551,55 @@ def listar_clientes():
 @app.route('/api/clientes', methods=['POST'])
 @requiere_admin
 def crear_cliente():
-    data = request.json
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Datos inválidos'}), 400
+
+    # Validación de campos obligatorios
+    campos_obligatorios = ['razon_social', 'ruc', 'representante', 'actividad_codigo', 'numero_trabajadores']
+    for campo in campos_obligatorios:
+        if not data.get(campo):
+            return jsonify({'error': f'El campo "{campo}" es obligatorio'}), 400
+
+    # Validar RUC duplicado ANTES de intentar insertar
     conn = sqlite3.connect('sst.db')
     c = conn.cursor()
     try:
+        c.execute("SELECT id FROM clientes WHERE ruc=?", (data['ruc'],))
+        if c.fetchone():
+            conn.close()
+            return jsonify({'error': f'Ya existe un cliente con el RUC {data["ruc"]}'}), 400
+
         codigo = generar_codigo_acceso()
         c.execute('''INSERT INTO clientes 
             (razon_social, ruc, representante, email, telefono, sector, actividad_codigo, 
              numero_trabajadores, tiene_grupos_prioritarios, fecha_registro, codigo_acceso)
             VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
-            (data['razon_social'], data['ruc'], data['representante'], data['email'],
-             data['telefono'], data['sector'], data['actividad_codigo'],
-             data['numero_trabajadores'], data.get('tiene_grupos_prioritarios', 0),
-             datetime.now().isoformat(), codigo))
+            (
+                data['razon_social'].strip(),
+                data['ruc'].strip(),
+                data['representante'].strip(),
+                data.get('email', '').strip() or None,
+                data.get('telefono', '').strip() or None,
+                data.get('sector', '').strip() or None,
+                data['actividad_codigo'],
+                int(data['numero_trabajadores']),
+                int(data.get('tiene_grupos_prioritarios', 0)),
+                datetime.now().isoformat(),
+                codigo
+            ))
         conn.commit()
         cliente_id = c.lastrowid
         conn.close()
         return jsonify({'id': cliente_id, 'mensaje': 'Cliente creado', 'codigo_acceso': codigo}), 201
+    except sqlite3.IntegrityError as e:
+        conn.close()
+        if 'UNIQUE constraint failed' in str(e):
+            return jsonify({'error': f'Ya existe un cliente con el RUC {data["ruc"]}'}), 400
+        return jsonify({'error': f'Error de integridad: {str(e)}'}), 400
     except Exception as e:
         conn.close()
-        return jsonify({'error': str(e)}), 400
-
-@app.route('/api/clientes/<int:cliente_id>', methods=['DELETE'])
-@requiere_admin
-def eliminar_cliente(cliente_id):
-    conn = sqlite3.connect('sst.db')
-    c = conn.cursor()
-    try:
-        c.execute("SELECT id FROM propuestas WHERE cliente_id=?", (cliente_id,))
-        propuestas = c.fetchall()
-        for p in propuestas:
-            c.execute("DELETE FROM servicios WHERE propuesta_id=?", (p[0],))
-        c.execute("DELETE FROM propuestas WHERE cliente_id=?", (cliente_id,))
-        c.execute("DELETE FROM proyectos WHERE cliente_id=?", (cliente_id,))
-        c.execute("DELETE FROM clientes WHERE id=?", (cliente_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'mensaje': 'Cliente eliminado correctamente'})
-    except Exception as e:
-        conn.close()
-        return jsonify({'error': str(e)}), 400
-
+        return jsonify({'error': f'Error al crear cliente: {str(e)}'}), 400
 @app.route('/api/clientes/<int:cliente_id>/codigo', methods=['GET'])
 @requiere_admin
 def obtener_codigo_cliente(cliente_id):
