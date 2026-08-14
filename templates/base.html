@@ -67,26 +67,12 @@
                             <i class="bi bi-box-arrow-right"></i> Salir
                         </a>
                     </li>
-
                 {% elif session['admin_logged_in'] %}
                     <!-- ========================================== -->
-                    <!-- OPCIONES PARA EL ADMINISTRADOR (Sesión activa) -->
+                    <!-- MENÚ ADMIN - ORDEN DEL FLUJO DE TRABAJO    -->
+                    <!-- 1.Clientes 2.Propuestas 3.Seguimiento      -->
+                    <!-- 4.Dashboard 5.Exportar 6.Cerrar Sesión     -->
                     <!-- ========================================== -->
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-                            <i class="bi bi-house"></i> Inicio
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/dashboard' %}active{% endif %}" href="/dashboard">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/entregables' %}active{% endif %}" href="/entregables">
-                            <i class="bi bi-list-check"></i> Seguimiento
-                        </a>
-                    </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/clientes' %}active{% endif %}" href="/clientes">
                             <i class="bi bi-people"></i> Clientes
@@ -95,6 +81,16 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/propuestas' %}active{% endif %}" href="/propuestas">
                             <i class="bi bi-file-earmark-text"></i> Propuestas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/entregables' %}active{% endif %}" href="/entregables">
+                            <i class="bi bi-list-check"></i> Seguimiento
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
                     </li>
                     <li class="nav-item dropdown">
