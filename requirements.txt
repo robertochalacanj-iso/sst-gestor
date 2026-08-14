@@ -3,3 +3,4 @@ flask-cors
 reportlab
 openpyxl
 gunicorn
+psycopg2-binary

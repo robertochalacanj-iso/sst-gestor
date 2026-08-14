@@ -1,9 +1,6 @@
-venv/
+test_db.py
+migrar_datos.py
+env_local.cmd
 __pycache__/
-*.pyc
-*.db
+*.pycsst.db
 uploads/
-.env
-.DS_Store
-*.log
-*.sqlite3

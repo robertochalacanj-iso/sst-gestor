@@ -1,5 +1,5 @@
 import json
-import sqlite3
+import db
 import os
 import csv
 import uuid
@@ -75,126 +75,67 @@ def generar_codigo_acceso():
 
 # ------------------- BASE DE DATOS -------------------
 def init_db():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS actividades (
-        codigo TEXT PRIMARY KEY,
-        descripcion TEXT,
-        nivel_riesgo TEXT
-    )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS clientes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        razon_social TEXT,
-        ruc TEXT UNIQUE,
-        representante TEXT,
-        email TEXT,
-        telefono TEXT,
-        sector TEXT,
-        actividad_codigo TEXT,
-        numero_trabajadores INTEGER,
-        tiene_grupos_prioritarios INTEGER DEFAULT 0,
-        tiene_responsable_previo INTEGER DEFAULT 0,
-        fecha_registro TEXT,
-        codigo_acceso TEXT
-    )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS propuestas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente_id INTEGER,
-        fecha_creacion TEXT,
-        fecha_actualizacion TEXT,
-        estado TEXT,
-        total_mensual REAL,
-        total_anual REAL,
-        observaciones TEXT,
-        observaciones_personalizadas TEXT
-    )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS servicios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        propuesta_id INTEGER,
-        descripcion TEXT,
-        tipo TEXT,
-        cantidad INTEGER,
-        precio_unitario REAL,
-        subtotal REAL,
-        observaciones TEXT
-    )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS proyectos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente_id INTEGER,
-        propuesta_id INTEGER,
-        nombre TEXT,
-        fecha_inicio TEXT,
-        fecha_fin TEXT,
-        estado TEXT,
-        consultor_responsable TEXT
-    )''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS entregables (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        proyecto_id INTEGER,
-        servicio_id INTEGER,
-        nombre TEXT,
-        descripcion TEXT,
-        estado TEXT,
-        fecha_limite TEXT,
-        fecha_entrega TEXT,
-        archivo TEXT,
-        comentarios TEXT,
-        es_autogenerado INTEGER DEFAULT 1
-    )''')
-    
-    # Migraciones
-    c.execute("PRAGMA table_info(clientes)")
-    columnas_clientes = [col[1] for col in c.fetchall()]
-    if 'codigo_acceso' not in columnas_clientes:
-        c.execute("ALTER TABLE clientes ADD COLUMN codigo_acceso TEXT")
-        # Generar códigos para clientes existentes
-        c.execute("SELECT id FROM clientes")
-        clientes = c.fetchall()
-        for cliente in clientes:
-            codigo = generar_codigo_acceso()
-            c.execute("UPDATE clientes SET codigo_acceso=? WHERE id=?", (codigo, cliente[0]))
-        print("✅ Columna 'codigo_acceso' agregada y códigos generados")
-    
-    c.execute("PRAGMA table_info(propuestas)")
-    columnas_prop = [col[1] for col in c.fetchall()]
-    if 'fecha_actualizacion' not in columnas_prop:
-        c.execute("ALTER TABLE propuestas ADD COLUMN fecha_actualizacion TEXT")
-    if 'observaciones_personalizadas' not in columnas_prop:
-        c.execute("ALTER TABLE propuestas ADD COLUMN observaciones_personalizadas TEXT")
-    
-    c.execute("PRAGMA table_info(servicios)")
-    columnas_serv = [col[1] for col in c.fetchall()]
-    if 'observaciones' not in columnas_serv:
-        c.execute("ALTER TABLE servicios ADD COLUMN observaciones TEXT")
-    
-    c.execute("PRAGMA table_info(proyectos)")
-    columnas_proy = [col[1] for col in c.fetchall()]
-    if 'propuesta_id' not in columnas_proy:
-        c.execute("ALTER TABLE proyectos ADD COLUMN propuesta_id INTEGER")
-    
-    c.execute("PRAGMA table_info(entregables)")
-    columnas_ent = [col[1] for col in c.fetchall()]
-    if 'servicio_id' not in columnas_ent:
-        c.execute("ALTER TABLE entregables ADD COLUMN servicio_id INTEGER")
-    if 'es_autogenerado' not in columnas_ent:
-        c.execute("ALTER TABLE entregables ADD COLUMN es_autogenerado INTEGER DEFAULT 1")
-    if 'descripcion' not in columnas_ent:
-        c.execute("ALTER TABLE entregables ADD COLUMN descripcion TEXT")
-    if 'archivo' not in columnas_ent:
-        c.execute("ALTER TABLE entregables ADD COLUMN archivo TEXT")
-    
+
+    if db.USE_POSTGRES:
+        c.execute('''CREATE TABLE IF NOT EXISTS actividades (
+            codigo TEXT PRIMARY KEY, descripcion TEXT, nivel_riesgo TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS clientes (
+            id SERIAL PRIMARY KEY, razon_social TEXT, ruc TEXT UNIQUE, representante TEXT,
+            email TEXT, telefono TEXT, sector TEXT, actividad_codigo TEXT,
+            numero_trabajadores INTEGER, tiene_grupos_prioritarios INTEGER DEFAULT 0,
+            tiene_responsable_previo INTEGER DEFAULT 0, fecha_registro TEXT,
+            codigo_acceso TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS propuestas (
+            id SERIAL PRIMARY KEY, cliente_id INTEGER, fecha_creacion TEXT,
+            fecha_actualizacion TEXT, estado TEXT, total_mensual REAL, total_anual REAL,
+            observaciones TEXT, observaciones_personalizadas TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS servicios (
+            id SERIAL PRIMARY KEY, propuesta_id INTEGER, descripcion TEXT, tipo TEXT,
+            cantidad INTEGER, precio_unitario REAL, subtotal REAL, observaciones TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS proyectos (
+            id SERIAL PRIMARY KEY, cliente_id INTEGER, propuesta_id INTEGER, nombre TEXT,
+            fecha_inicio TEXT, fecha_fin TEXT, estado TEXT, consultor_responsable TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS entregables (
+            id SERIAL PRIMARY KEY, proyecto_id INTEGER, servicio_id INTEGER, nombre TEXT,
+            descripcion TEXT, estado TEXT, fecha_limite TEXT, fecha_entrega TEXT,
+            archivo TEXT, comentarios TEXT, es_autogenerado INTEGER DEFAULT 1)''')
+    else:
+        c.execute('''CREATE TABLE IF NOT EXISTS actividades (
+            codigo TEXT PRIMARY KEY, descripcion TEXT, nivel_riesgo TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, razon_social TEXT, ruc TEXT UNIQUE,
+            representante TEXT, email TEXT, telefono TEXT, sector TEXT,
+            actividad_codigo TEXT, numero_trabajadores INTEGER,
+            tiene_grupos_prioritarios INTEGER DEFAULT 0,
+            tiene_responsable_previo INTEGER DEFAULT 0,
+            fecha_registro TEXT, codigo_acceso TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS propuestas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER,
+            fecha_creacion TEXT, fecha_actualizacion TEXT, estado TEXT,
+            total_mensual REAL, total_anual REAL, observaciones TEXT,
+            observaciones_personalizadas TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS servicios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, propuesta_id INTEGER,
+            descripcion TEXT, tipo TEXT, cantidad INTEGER,
+            precio_unitario REAL, subtotal REAL, observaciones TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS proyectos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER,
+            propuesta_id INTEGER, nombre TEXT, fecha_inicio TEXT,
+            fecha_fin TEXT, estado TEXT, consultor_responsable TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS entregables (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, proyecto_id INTEGER,
+            servicio_id INTEGER, nombre TEXT, descripcion TEXT, estado TEXT,
+            fecha_limite TEXT, fecha_entrega TEXT, archivo TEXT,
+            comentarios TEXT, es_autogenerado INTEGER DEFAULT 1)''')
+
     conn.commit()
     conn.close()
-    print("✅ Base de datos inicializada correctamente")
-
+    modo = "PostgreSQL/Supabase" if db.USE_POSTGRES else "SQLite local"
+    print(f"✅ Base de datos inicializada correctamente ({modo})")
 def cargar_anexo2_csv():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM actividades")
     if c.fetchone()[0] == 0:
@@ -221,7 +162,7 @@ def cargar_anexo2_csv():
     conn.close()
 
 def recalcular_totales_anuales():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM propuestas")
     propuestas = c.fetchall()
@@ -245,7 +186,7 @@ recalcular_totales_anuales()
 
 # ------------------- FUNCIONES DE NEGOCIO -------------------
 def obtener_nivel_riesgo(codigo):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT nivel_riesgo FROM actividades WHERE codigo=?", (codigo,))
     row = c.fetchone()
@@ -460,7 +401,7 @@ def cliente_login():
 
 @app.route('/cliente/<codigo>')
 def portal_cliente(codigo):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id, razon_social FROM clientes WHERE codigo_acceso=?", (codigo,))
     cliente = c.fetchone()
@@ -505,7 +446,7 @@ def editar_propuesta(propuesta_id):
 @app.route('/api/dashboard', methods=['GET'])
 @requiere_admin
 def api_dashboard():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM clientes")
     total_clientes = c.fetchone()[0]
@@ -526,7 +467,7 @@ def api_dashboard():
 @app.route('/api/actividades', methods=['GET'])
 @requiere_admin
 def listar_actividades():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT codigo, descripcion, nivel_riesgo FROM actividades ORDER BY descripcion")
     rows = c.fetchall()
@@ -536,7 +477,7 @@ def listar_actividades():
 @app.route('/api/clientes', methods=['GET'])
 @requiere_admin
 def listar_clientes():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id, razon_social, ruc, representante, email, telefono, sector, numero_trabajadores, actividad_codigo, tiene_grupos_prioritarios, codigo_acceso FROM clientes ORDER BY id DESC")
     rows = c.fetchall()
@@ -562,7 +503,7 @@ def crear_cliente():
             return jsonify({'error': f'El campo "{campo}" es obligatorio'}), 400
 
     # Validar RUC duplicado ANTES de intentar insertar
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     try:
         c.execute("SELECT id FROM clientes WHERE ruc=?", (data['ruc'],))
@@ -592,7 +533,7 @@ def crear_cliente():
         cliente_id = c.lastrowid
         conn.close()
         return jsonify({'id': cliente_id, 'mensaje': 'Cliente creado', 'codigo_acceso': codigo}), 201
-    except sqlite3.IntegrityError as e:
+    except db.IntegrityError as e:
         conn.close()
         if 'UNIQUE constraint failed' in str(e):
             return jsonify({'error': f'Ya existe un cliente con el RUC {data["ruc"]}'}), 400
@@ -603,7 +544,7 @@ def crear_cliente():
 @app.route('/api/clientes/<int:cliente_id>/codigo', methods=['GET'])
 @requiere_admin
 def obtener_codigo_cliente(cliente_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT codigo_acceso FROM clientes WHERE id=?", (cliente_id,))
     row = c.fetchone()
@@ -616,7 +557,7 @@ def obtener_codigo_cliente(cliente_id):
 @requiere_admin
 def regenerar_codigo_cliente(cliente_id):
     nuevo_codigo = generar_codigo_acceso()
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("UPDATE clientes SET codigo_acceso=? WHERE id=?", (nuevo_codigo, cliente_id))
     conn.commit()
@@ -631,7 +572,7 @@ def generar_propuesta():
     if not cliente_id:
         return jsonify({'error': 'Se requiere cliente_id'}), 400
 
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM clientes WHERE id=?", (cliente_id,))
     row = c.fetchone()
@@ -679,7 +620,7 @@ def generar_propuesta():
 @app.route('/api/propuestas/<int:propuesta_id>', methods=['GET'])
 @requiere_admin
 def obtener_propuesta(propuesta_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''SELECT p.id, p.cliente_id, p.fecha_creacion, p.estado, p.total_mensual, p.total_anual, p.observaciones, p.observaciones_personalizadas,
                        c.razon_social, c.ruc, c.representante, c.email, c.telefono, c.actividad_codigo, c.numero_trabajadores
@@ -720,7 +661,7 @@ def obtener_propuesta(propuesta_id):
 @requiere_admin
 def actualizar_propuesta(propuesta_id):
     data = request.json
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     
     try:
@@ -795,7 +736,7 @@ def actualizar_propuesta(propuesta_id):
 @app.route('/api/propuestas', methods=['GET'])
 @requiere_admin
 def listar_propuestas():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''SELECT p.id, p.cliente_id, p.fecha_creacion, p.estado, p.total_mensual, p.total_anual,
                        c.razon_social, c.ruc, p.fecha_actualizacion
@@ -813,7 +754,7 @@ def listar_propuestas():
 @app.route('/api/propuestas/<int:propuesta_id>', methods=['DELETE'])
 @requiere_admin
 def eliminar_propuesta(propuesta_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     try:
         c.execute('''DELETE FROM entregables WHERE proyecto_id IN 
@@ -831,7 +772,7 @@ def eliminar_propuesta(propuesta_id):
 @app.route('/api/propuestas/<int:propuesta_id>/servicios', methods=['GET'])
 @requiere_admin
 def obtener_servicios_propuesta(propuesta_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id, descripcion, tipo FROM servicios WHERE propuesta_id=?", (propuesta_id,))
     servicios = [{'id': r[0], 'descripcion': r[1], 'tipo': r[2]} for r in c.fetchall()]
@@ -841,7 +782,7 @@ def obtener_servicios_propuesta(propuesta_id):
 @app.route('/api/proyectos', methods=['GET'])
 @requiere_admin
 def listar_proyectos():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''SELECT p.id, p.cliente_id, p.propuesta_id, p.nombre, p.fecha_inicio, p.fecha_fin, p.estado, p.consultor_responsable,
                        c.razon_social, pr.estado as propuesta_estado
@@ -861,7 +802,7 @@ def listar_proyectos():
 @requiere_admin
 def crear_proyecto():
     data = request.json
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     try:
         propuesta_id = data.get('propuesta_id')
@@ -902,7 +843,7 @@ def crear_proyecto():
 @app.route('/api/proyectos/<int:proyecto_id>', methods=['DELETE'])
 @requiere_admin
 def eliminar_proyecto(proyecto_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     try:
         c.execute("DELETE FROM entregables WHERE proyecto_id=?", (proyecto_id,))
@@ -918,7 +859,7 @@ def eliminar_proyecto(proyecto_id):
 @requiere_admin
 def listar_entregables():
     proyecto_id = request.args.get('proyecto_id')
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     if proyecto_id:
         c.execute('''SELECT e.id, e.proyecto_id, e.servicio_id, e.nombre, e.descripcion, e.estado,
@@ -948,7 +889,7 @@ def listar_entregables():
 @requiere_admin
 def crear_entregable():
     data = request.json
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     try:
         c.execute('''INSERT INTO entregables 
@@ -975,7 +916,7 @@ def actualizar_entregable(entregable_id):
         data = request.json
         archivo = None
     
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     
     try:
@@ -1017,7 +958,7 @@ def actualizar_entregable(entregable_id):
 @app.route('/api/entregables/<int:entregable_id>', methods=['DELETE'])
 @requiere_admin
 def eliminar_entregable(entregable_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     # Eliminar el archivo físico si existe
     c.execute("SELECT archivo FROM entregables WHERE id=?", (entregable_id,))
@@ -1036,7 +977,7 @@ def eliminar_entregable(entregable_id):
 @app.route('/api/cliente/<codigo>/entregables', methods=['GET'])
 def api_cliente_entregables(codigo):
     """API para que el cliente vea sus entregables"""
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM clientes WHERE codigo_acceso=?", (codigo,))
     cliente = c.fetchone()
@@ -1075,7 +1016,7 @@ def api_cliente_entregables(codigo):
 @app.route('/api/cliente/<codigo>/entregable/<int:entregable_id>/download', methods=['GET'])
 def cliente_descargar_archivo(codigo, entregable_id):
     """Permite al cliente descargar un archivo de su entregable"""
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''
         SELECT e.archivo FROM entregables e
@@ -1103,7 +1044,7 @@ def entregables_pdf():
     propuesta_id = request.args.get('propuesta_id')
     cliente_id = request.args.get('cliente_id')
     
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     
     query = '''
@@ -1249,7 +1190,7 @@ def entregables_pdf():
 @app.route('/api/propuestas/<int:propuesta_id>/pdf', methods=['GET'])
 @requiere_admin
 def descargar_pdf(propuesta_id):
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''SELECT p.id, p.cliente_id, p.total_mensual, p.total_anual, p.observaciones_personalizadas,
                        c.razon_social, c.ruc, c.representante, c.email, c.telefono,
@@ -1396,7 +1337,7 @@ def descargar_pdf(propuesta_id):
 @app.route('/api/exportar/clientes', methods=['GET'])
 @requiere_admin
 def exportar_clientes_excel():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute("SELECT id, razon_social, ruc, representante, email, telefono, sector, actividad_codigo, numero_trabajadores, fecha_registro, codigo_acceso FROM clientes ORDER BY id DESC")
     rows = c.fetchall()
@@ -1438,7 +1379,7 @@ def exportar_clientes_excel():
 @app.route('/api/exportar/propuestas', methods=['GET'])
 @requiere_admin
 def exportar_propuestas_excel():
-    conn = sqlite3.connect('sst.db')
+    conn = db.get_db()
     c = conn.cursor()
     c.execute('''SELECT p.id, c.razon_social, c.ruc, p.fecha_creacion, p.estado, p.total_mensual, p.total_anual
                  FROM propuestas p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC''')
