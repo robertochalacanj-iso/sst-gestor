@@ -20,12 +20,12 @@ from openpyxl.utils import get_column_letter
 from functools import wraps
 
 app = Flask(__name__)
-app.secret_key = 'sst_gestor_secreto_2026'
+app.secret_key = os.environ.get('SECRET_KEY', 'sst_gestor_secreto_2026')
 CORS(app)
 
 # ------------------- CONFIGURACIÓN DE ADMINISTRADOR -------------------
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "sst2026*"
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'sst2026*')
 
 # Decorador para proteger páginas (revisa si hay sesión activa)
 def requiere_admin(f):
@@ -56,7 +56,7 @@ def admin_logout():
     return redirect('/')
 
 # ------------------- CONFIGURACIÓN DE ARCHIVOS -------------------
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'txt', 'zip', 'rar'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -140,6 +140,8 @@ def cargar_anexo2_csv():
     c.execute("SELECT COUNT(*) FROM actividades")
     if c.fetchone()[0] == 0:
         csv_path = 'data/anexo2.csv'
+        if not os.path.exists(csv_path):
+            csv_path = 'anexo2.csv'
         if os.path.exists(csv_path):
             with open(csv_path, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -180,9 +182,36 @@ def recalcular_totales_anuales():
     conn.close()
     print("✅ Totales anuales recalculados como suma simple")
 
-init_db()
-cargar_anexo2_csv()
-recalcular_totales_anuales()
+# Inicialización diferida: evita que Render quede caído si la BD tarda en despertar
+STARTUP_READY = False
+STARTUP_ERROR = None
+
+def ensure_startup():
+    global STARTUP_READY, STARTUP_ERROR
+    if STARTUP_READY:
+        return True
+    try:
+        init_db()
+        cargar_anexo2_csv()
+        recalcular_totales_anuales()
+        STARTUP_READY = True
+        STARTUP_ERROR = None
+        return True
+    except Exception as exc:
+        STARTUP_ERROR = exc
+        app.logger.exception('Error inicializando SST Gestor')
+        return False
+
+@app.before_request
+def validar_inicio():
+    # Health no debe depender de migraciones pesadas.
+    if request.path in ('/healthz', '/api/health') or request.path.startswith('/static/'):
+        return None
+    if ensure_startup():
+        return None
+    if request.path.startswith('/api/'):
+        return jsonify({'ok': False, 'error': 'No fue posible inicializar la base de datos', 'detalle': str(STARTUP_ERROR)}), 503
+    return render_template('cliente_error.html', mensaje='SST Gestor está iniciado, pero no pudo conectar con la base de datos. Revise DATABASE_URL / PGHOST en Render.', es_cliente=False), 503
 
 # ------------------- FUNCIONES DE NEGOCIO -------------------
 def obtener_nivel_riesgo(codigo):
@@ -388,6 +417,25 @@ def generar_servicios_base(cliente):
     })
 
     return servicios
+
+
+@app.route('/healthz')
+def healthz():
+    st = db.status()
+    return jsonify({
+        'ok': True,
+        'app': 'sst-gestor',
+        'database_ok': st['ok'],
+        'database_mode': st['modo'],
+        'database_error': st['error'],
+        'startup_ready': STARTUP_READY,
+        'startup_error': str(STARTUP_ERROR) if STARTUP_ERROR else None,
+        'time': datetime.now().isoformat()
+    }), 200
+
+@app.route('/api/health')
+def api_health():
+    return healthz()
 
 # ------------------- ENDPOINTS PÚBLICOS Y DE ADMIN -------------------
 @app.route('/')
